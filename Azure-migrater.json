@@ -1,0 +1,181 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "DeploymentID": {
+      "type": "string"
+    },
+    "migration_project_name": {
+      "defaultValue": "[concat('SmartHotelMigration',parameters('DeploymentID'))]",
+      "type": "String"
+    },
+    "services_name": {
+      "defaultValue": "SmartHotelDBMigration",
+      "type": "String"
+    },
+    "networkInterfaces_name": {
+      "defaultValue": "[concat('Nic_dbmigrate-',parameters('DeploymentID'))]",
+      "type": "String"
+    }
+  },
+  "variables": {
+    "rgName": "SmartHotelHostRG",
+    "virtualNetworkName": "DMSVnet",
+    "managementSubnetName": "DMS-Subnet",
+    "deploymentscript": "WaitSection"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Migrate/MigrateProjects",
+      "apiVersion": "2023-01-01",
+      "name": "[parameters('migration_project_name')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [],
+      "properties": {}
+    },
+    {
+      "type": "microsoft.migrate/migrateprojects/Solutions",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(parameters('migration_project_name'),'/Servers-Migration-ServerMigration')]",
+      "dependsOn": [
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Migrate/MigrateProjects/', parameters('migration_project_name'))]"
+      ],
+      "properties": {
+        "tool": "ServerMigration",
+        "purpose": "Migration",
+        "goal": "Servers",
+        "status": "Active",
+        "details": null
+      }
+    },
+    {
+      "type": "microsoft.migrate/migrateprojects/Solutions",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(parameters('migration_project_name'), '/Servers-Assessment-ServerAssessment')]",
+      "dependsOn": [
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Migrate/MigrateProjects/', parameters('migration_project_name'))]",
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Migrate/MigrateProjects/', parameters('migration_project_name'), '/Solutions/Servers-Migration-ServerMigration')]",
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Migrate/MigrateProjects/', parameters('migration_project_name'), '/Solutions/Servers-Discovery-ServerDiscovery')]"
+      ],
+      "properties": {
+        "tool": "ServerAssessment",
+        "purpose": "Assessment",
+        "goal": "Servers",
+        "status": "Active",
+        "details": null
+      }
+    },
+    {
+      "type": "microsoft.migrate/migrateprojects/Solutions",
+      "apiVersion": "2023-01-01",
+      "name": "[concat(parameters('migration_project_name'), '/Servers-Discovery-ServerDiscovery')]",
+      "dependsOn": [
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Migrate/MigrateProjects/', parameters('migration_project_name'), '/Solutions/Servers-Migration-ServerMigration')]"
+      ],
+      "properties": {
+        "tool": "ServerDiscovery",
+        "purpose": "Discovery",
+        "goal": "Servers",
+        "status": "Inactive",
+        "details": null
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2025-09-01",
+      "name": "[parameters('networkInterfaces_name')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat(resourceId('Microsoft.Resources/deploymentScripts', variables('deploymentscript')))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAddress": "10.1.0.4",
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[resourceId(variables('rgName'),'Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('managementSubnetName'))]"
+              },
+              "primary": true,
+              "privateIPAddressVersion": "IPv4"
+            }
+          }
+        ],
+        "dnsSettings": {
+          "dnsServers": []
+        },
+        "enableAcceleratedNetworking": false,
+        "enableIPForwarding": false
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "kind": "AzurePowerShell",
+      "name": "[variables('deploymentscript')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "azPowerShellVersion": "9.7",
+        "scriptContent": "start-sleep -Seconds 240",
+        "cleanupPreference": "Always",
+        "retentionInterval": "PT1H"
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deploymentScripts",
+      "apiVersion": "2023-08-01",
+      "kind": "AzurePowerShell",
+      "name": "ValidateMigratePrereqs",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Migrate/MigrateProjects', parameters('migration_project_name'))]"
+      ],
+      "properties": {
+        "azPowerShellVersion": "9.7",
+        "cleanupPreference": "OnSuccess",
+        "retentionInterval": "PT2H",
+        "timeout": "PT10M",
+        "scriptContent": "[concat('$rps = @(\"Microsoft.Migrate\",\"Microsoft.OffAzure\",\"Microsoft.DataMigration\",\"Microsoft.RecoveryServices\",\"Microsoft.KeyVault\",\"Microsoft.MySQLDiscovery\",\"Microsoft.DependencyMap\",\"Microsoft.ApplicationMigration\",\"Microsoft.Insights\",\"Microsoft.HybridCompute\",\"Microsoft.Storage\",\"Microsoft.Network\",\"Microsoft.GuestConfiguration\",\"Microsoft.Compute\",\"Microsoft.HybridConnectivity\",\"Microsoft.DataReplication\",\"Microsoft.AzureArcData\"); $results = foreach ($rp in $rps) { $state = (Get-AzResourceProvider -ProviderNamespace $rp).RegistrationState | Select-Object -First 1; if ($state -ne \"Registered\") { Register-AzResourceProvider -ProviderNamespace $rp | Out-Null }; [pscustomobject]@{ provider = $rp; state = $state } }; $DeploymentScriptOutputs = @{}; $DeploymentScriptOutputs[\"resourceProviderStatus\"] = ($results | ConvertTo-Json -Compress)')]"
+      }
+    },
+    {
+      "type": "Microsoft.DataMigration/services",
+      "apiVersion": "2025-06-30",
+      "name": "[parameters('services_name')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/networkInterfaces/', parameters('networkInterfaces_name'))]",
+        "WaitSection"
+      ],
+      "sku": {
+        "name": "Standard_1vCores",
+        "tier": "Standard",
+        "size": "1 vCores"
+      },
+      "kind": "Cloud",
+      "properties": {
+        "virtualSubnetId": "[resourceId(variables('rgName'),'Microsoft.Network/virtualNetworks/subnets', variables('virtualNetworkName'), variables('managementSubnetName'))]"
+      }
+    }
+  ],
+  "outputs": {
+    "migrateProjectResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Migrate/MigrateProjects', parameters('migration_project_name'))]"
+    },
+    "dataMigrationServiceResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.DataMigration/services', parameters('services_name'))]"
+    },
+    "networkInterfaceResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Network/networkInterfaces', parameters('networkInterfaces_name'))]"
+    },
+    "resourceProviderRegistrationStatus": {
+      "type": "string",
+      "value": "[reference('ValidateMigratePrereqs').outputs.resourceProviderStatus]"
+    }
+  }
+}
