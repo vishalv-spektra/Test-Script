@@ -1,0 +1,425 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "type": "string",
+      "metadata": {
+        "description": "Username for the Virtual Machine."
+      }
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password for the Virtual Machine."
+      }
+    },
+    "AzureUserName": {
+      "type": "string",
+      "metadata": {
+        "description": "AzureUserName, AzurePassword, DeploymentID parameters are required for Azure Creds file, Must use in all Windows LabVMs "
+      }
+    },
+    "AzurePassword": {
+      "type": "securestring"
+    },
+    "ODLID": {
+      "type": "string"
+    },
+    "DeploymentID": {
+      "type": "string"
+    },
+    "InstallCloudLabsShadow": {
+      "type": "string",
+      "defaultValue": "yes",
+      "allowedValues": [
+        "yes",
+        "no"
+      ],
+      "metadata": {
+        "description": "Required for CloudlabsShadow, value should be yes if you want to install otherwise no"
+      }
+    },
+    "hostPoolName": {
+      "type": "string",
+      "defaultValue": "InfraHostPool"
+    },
+    "hostpoolToken": {
+      "type": "string",
+      "defaultValue": "PLACEHOLDER_TOKEN"
+    },
+    "trainerUserName": {
+      "type": "string"
+    },
+    "trainerUserPassword": {
+      "type": "string"
+    },
+    "emailId": {
+      "type": "string",
+      "defaultValue": " ",
+      "metadata": "This will get the User Email ID who will be launching the lab from the parameter file using GET-USER-EMAIL-ID"
+    }
+  },
+  "variables": {
+    "cloudlabsCommon": "[concat(' -AzureUserName ', parameters('AzureUserName'), ' -AzurePassword ', parameters('AzurePassword'), ' -AzureTenantID ', variables('AzureTenantID'), ' -AzureSubscriptionID ', variables('AzureSubscriptionID'), ' -ODLID ', parameters('ODLID'), ' -DeploymentID ', parameters('DeploymentID'),' -InstallCloudLabsShadow ', parameters('InstallCloudLabsShadow'))]",
+    "Enable-CloudLabsEmbeddedShadow": "[concat(' -adminUsername ', parameters('adminUsername'), ' -trainerUserName ', parameters('trainerUserName'), ' -trainerUserPassword ', parameters('trainerUserPassword'), ' -adminPassword ', parameters('adminPassword'))]",
+    "AzureSubscriptionID": "[subscription().subscriptionId]",
+    "AzureTenantID": "[subscription().tenantId]",
+    "smarthotelhostVMname": "[concat('Smarthost',parameters('DeploymentID'))]",
+    "smarthotelhostNICname": "smarthotelhostnic",
+    "smartHostelHostDnsName": "[concat('smarthostelhost',parameters('DeploymentID'))]",
+    "smarthotelhostOSdisk": "[concat(variables('smarthotelhostVMname'),'_OsDisk')]",
+    "publicIPAddressName": "smarthotelhostip",
+    "smarthotelVnetName": "smarthotelhostvnet",
+    "smarthotelPrefix": "10.0.0.0/16",
+    "smarthotelSubnetPrefix": "10.0.0.0/24",
+    "smarthotelSubnetName": "hostsubnet",
+    "smarthotelhostNSGName": "smarthotelhostnsg",
+    "dmsVnetName": "DMSVnet",
+    "dmsPrefix": "10.1.0.0/16",
+    "dmsSubnetPrefix": "10.1.0.0/24",
+    "dmsSubnetName": "DMS-Subnet",
+    "customScriptUri": "https://experienceazure.blob.core.windows.net/templates/infra-migration-V2/new/psscripts-01.ps1",
+    "migration_project_name": "[concat('SmartHotelMigration',parameters('DeploymentID'))]",
+    "dhcpOption": {
+      "dnsServers": [
+        "48.216.235.241"
+      ]
+    },
+    "dhcpOptions": "[if(contains(parameters('emailId'), 'tcs.com'), variables('dhcpOption'), json('null'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[variables('smarthotelhostVMname')]",
+      "apiVersion": "2024-11-01",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('smarthotelhostNICname'))]"
+      ],
+      "tags": {},
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_D8s_v3"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "id": "/subscriptions/29c465b3-aedf-44db-8807-b933cd374bcc/resourcegroups/cloudlabs-mgmt/providers/Microsoft.Compute/galleries/CloudLabsSIG/images/infra-migration/versions/latest"
+          },
+          "osDisk": {
+            "createOption": "fromImage",
+            "name": "[variables('smarthotelhostOSdisk')]",
+            "diskSizeGB": 256,
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            }
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('smarthotelhostNICname'))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": true
+          }
+        }
+      },
+      "resources": [
+        {
+          "name": "CustomSciptExtension",
+          "type": "extensions",
+          "apiVersion": "2024-11-01",
+          "location": "[resourceGroup().location]",
+          "tags": {
+            "displayName": "ConfigureHost"
+          },
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', variables('smarthotelhostVMname'))]"
+          ],
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "CustomScriptExtension",
+            "typeHandlerVersion": "1.8",
+            "autoUpgradeMinorVersion": true,
+            "settings": {
+              "fileUris": [
+                "[variables('customScriptUri')]",
+                "https://experienceazure.blob.core.windows.net/templates/cloudlabs-common/cloudlabs-windows-functions.ps1"
+              ],
+              "commandToExecute": "[concat('powershell.exe -ExecutionPolicy Unrestricted -File infra-migration-V2/new/psscripts-01.ps1', variables('cloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'))]"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('smarthotelhostNICname')]",
+      "apiVersion": "2025-09-01",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
+              },
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('smarthotelVnetName'), variables('smarthotelSubnetName'))]"
+              },
+              "primary": true,
+              "privateIPAddressVersion": "IPv4"
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('smarthotelhostNSGName'))]"
+        },
+        "primary": true,
+        "virtualMachine": {
+          "id": "[resourceId('Microsoft.Compute/virtualMachines', variables('smarthotelhostVMname'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks/', variables('smarthotelVnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "name": "[variables('smarthotelhostNSGName')]",
+      "apiVersion": "2025-09-01",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {
+        "securityRules": [
+          {
+            "name": "RemoteDesktop",
+            "properties": {
+              "protocol": "TCP",
+              "sourcePortRange": "*",
+              "destinationPortRange": "3389",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 300,
+              "direction": "Inbound",
+              "sourcePortRanges": [],
+              "destinationPortRanges": [],
+              "sourceAddressPrefixes": [],
+              "destinationAddressPrefixes": []
+            }
+          },
+          {
+            "name": "HTTP",
+            "properties": {
+              "protocol": "TCP",
+              "sourcePortRange": "*",
+              "destinationPortRange": "80",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 310,
+              "direction": "Inbound",
+              "sourcePortRanges": [],
+              "destinationPortRanges": [],
+              "sourceAddressPrefixes": [],
+              "destinationAddressPrefixes": []
+            }
+          },
+          {
+            "name": "SSH",
+            "properties": {
+              "protocol": "TCP",
+              "sourcePortRange": "*",
+              "destinationPortRange": "22",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 320,
+              "direction": "Inbound",
+              "sourcePortRanges": [],
+              "destinationPortRanges": [],
+              "sourceAddressPrefixes": [],
+              "destinationAddressPrefixes": []
+            }
+          },
+          {
+            "name": "HypervDesktop",
+            "properties": {
+              "protocol": "TCP",
+              "sourcePortRange": "*",
+              "destinationPortRange": "2179",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "VirtualNetwork",
+              "access": "Allow",
+              "priority": 330,
+              "direction": "Inbound",
+              "sourcePortRanges": [],
+              "destinationPortRanges": [],
+              "sourceAddressPrefixes": [],
+              "destinationAddressPrefixes": []
+            }
+          }
+        ]
+      },
+      "dependsOn": []
+    },
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "sku": {
+        "name": "Standard",
+        "tier": "Regional"
+      },
+      "name": "[variables('publicIPAddressName')]",
+      "apiVersion": "2025-07-01",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {
+        "publicIPAddressVersion": "IPv4",
+        "publicIPAllocationMethod": "Static",
+        "idleTimeoutInMinutes": 4,
+        "ipTags": [],
+        "dnsSettings": {
+          "domainNameLabel": "[variables('smartHostelHostDnsName')]"
+        }
+      },
+      "dependsOn": [
+       "[resourceId('Microsoft.Network/networkSecurityGroups', variables('smarthotelhostNSGName'))]"
+       ]
+    },
+    {
+      "apiVersion": "2025-07-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('smarthotelVnetName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('smarthotelPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('smarthotelSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('smarthotelSubnetPrefix')]"
+            }
+          }
+        ],
+        "dhcpOptions": "[variables('dhcpOptions')]"
+      }
+    },
+    {
+      "apiVersion": "2025-07-01",
+      "type": "Microsoft.Network/virtualNetworks",
+      "name": "[variables('dmsVnetName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {},
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[variables('dmsPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('dmsSubnetName')]",
+            "properties": {
+              "addressPrefix": "[variables('dmsSubnetPrefix')]"
+            }
+          }
+        ],
+        "dhcpOptions": "[variables('dhcpOptions')]"
+      }
+    },
+    {
+      "apiVersion": "2025-07-01",
+      "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+      "name": "[concat(variables('smarthotelVnetName'),'/host2dms')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "allowVirtualNetworkAccess": true,
+        "allowForwardedTraffic": false,
+        "allowGatewayTransit": false,
+        "useRemoteGateways": false,
+        "remoteVirtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('dmsVnetName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('smarthotelVnetName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('dmsVnetName'))]"
+      ]
+    },
+    {
+      "apiVersion": "2025-07-01",
+      "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
+      "name": "[concat(variables('dmsVnetName'),'/dms2host')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "allowVirtualNetworkAccess": true,
+        "allowForwardedTraffic": false,
+        "allowGatewayTransit": false,
+        "useRemoteGateways": false,
+        "remoteVirtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('smarthotelVnetName'))]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('smarthotelVnetName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('dmsVnetName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "SmartHotelHost VM Name": {
+      "type": "string",
+      "value": "[variables('smarthotelhostVMname')]"
+    },
+    "SmartHotelHost DNS Name": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIPAddresses',variables('publicIpAddressName'))).dnsSettings.fqdn]"
+    },
+    "SmartHotelHost Admin Username": {
+      "type": "string",
+      "value": "[parameters('adminUsername')]"
+    },
+    "SmartHotelHost Admin Password": {
+      "type": "string",
+      "value": "[parameters('adminPassword')]"
+    },
+    "Region": {
+      "type": "string",
+      "value": "[resourceGroup().location]"
+    },
+    "DeploymentID": {
+      "type": "string",
+      "value": "[parameters('DeploymentID')]"
+    },
+    "Azure Migrate Project Name": {
+      "type": "string",
+      "value": "[variables('migration_project_name')]"
+    },
+    "SmartHotel Admin Password": {
+      "type": "string",
+      "value": "demo!pass123"
+    },
+    "CustomScriptExtension Provisioning State": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Compute/virtualMachines/extensions', variables('smarthotelhostVMname'), 'CustomSciptExtension')).provisioningState]"
+    },
+    "SmartHotelHost VM Resource Id": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Compute/virtualMachines', variables('smarthotelhostVMname'))]"
+    }
+  }
+}
