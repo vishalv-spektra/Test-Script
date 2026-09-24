@@ -46,7 +46,7 @@
     },
     "hostpoolToken": {
       "type": "string",
-      "defaultValue": "PLACEHOLDER_TOKEN"
+      "defaultValue": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjVGRjc0N0JFODhCREFCMjQ0ODU1NkFGQjQwRTk3MkUyQUVGNjM2ODciLCJ0eXAiOiJKV1QifQ.eyJSZWdpc3RyYXRpb25JZCI6IjdlYzM3ZjU0LWEzYmUtNGQzZS1iODk0LWUxMGFhNGNmZGQ2OSIsIkJyb2tlclVyaSI6Imh0dHBzOi8vcmRicm9rZXItZy11cy1yMC53dmQubWljcm9zb2Z0LmNvbS8iLCJEaWFnbm9zdGljc1VyaSI6Imh0dHBzOi8vcmRkaWFnbm9zdGljcy1nLXVzLXIwLnd2ZC5taWNyb3NvZnQuY29tLyIsIkVuZHBvaW50UG9vbElkIjoiMzRlNjViYmQtYWNlMS00ZjM0LWI0NGUtZDAyOGYzNjFjMzVlIiwiR2xvYmFsQnJva2VyVXJpIjoiaHR0cHM6Ly9yZGJyb2tlci53dmQubWljcm9zb2Z0LmNvbS8iLCJHZW9ncmFwaHkiOiJVUyIsIm5iZiI6MTYwMzExMTcyNCwiZXhwIjoxNjA1Mzc4NjAwLCJpc3MiOiJSREluZnJhVG9rZW5NYW5hZ2VyIiwiYXVkIjoiUkRtaSJ9.yt_1BKbNogn9_VZ0yS026glLchz-O3XFMGwmAKvv2APgdTG5VJx7tUdqdQe1f9jjcQqd_qx0_uMhZD3LXkGXlZOtkCB_I6sip6jR_zgGJJT9okG77WR5nGSM8qPcDZN0jE_oZNSznXQLTJM_2t__-UxryROBtCELWJQDf87jlIArgdEmL14kO2d5yoG15iI9NnRereOELQSOLj0CjeDey3k79k8S0kMxBF1lN-_bRzJP1NbnZ18smDGl2qMS_l4o89AZMRgp-WnDkMLxg4oUM3uRskwqPo7i64gIrB_ALfJyLZVBNZDmlgxDKOhG99TmNT3hQHT3KHHkz2GSEuPM7A"
     },
     "trainerUserName": {
       "type": "string"
@@ -92,7 +92,7 @@
     {
       "type": "Microsoft.Compute/virtualMachines",
       "name": "[variables('smarthotelhostVMname')]",
-      "apiVersion": "2024-11-01",
+      "apiVersion": "2019-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkInterfaces', variables('smarthotelhostNICname'))]"
@@ -104,7 +104,7 @@
         },
         "storageProfile": {
           "imageReference": {
-            "id": "/subscriptions/29c465b3-aedf-44db-8807-b933cd374bcc/resourcegroups/cloudlabs-mgmt/providers/Microsoft.Compute/galleries/CloudLabsSIG/images/infra-migration/versions/latest"
+            "id": "/subscriptions/29c465b3-aedf-44db-8807-b933cd374bcc/resourceGroups/cloudlabs-mgmt/providers/Microsoft.Compute/galleries/CloudLabsSIG/images/Migrate-Secure-Workload/versions/latest"
           },
           "osDisk": {
             "createOption": "fromImage",
@@ -121,18 +121,13 @@
               "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('smarthotelhostNICname'))]"
             }
           ]
-        },
-        "diagnosticsProfile": {
-          "bootDiagnostics": {
-            "enabled": true
-          }
         }
       },
       "resources": [
         {
           "name": "CustomSciptExtension",
           "type": "extensions",
-          "apiVersion": "2024-11-01",
+          "apiVersion": "2019-07-01",
           "location": "[resourceGroup().location]",
           "tags": {
             "displayName": "ConfigureHost"
@@ -159,7 +154,7 @@
     {
       "type": "Microsoft.Network/networkInterfaces",
       "name": "[variables('smarthotelhostNICname')]",
-      "apiVersion": "2025-09-01",
+      "apiVersion": "2019-07-01",
       "location": "[resourceGroup().location]",
       "tags": {},
       "properties": {
@@ -172,7 +167,7 @@
                 "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIPAddressName'))]"
               },
               "subnet": {
-                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('smarthotelVnetName'), variables('smarthotelSubnetName'))]"
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('smarthotelVnetName'), variables('smarthotelSubnetname'))]"
               },
               "primary": true,
               "privateIPAddressVersion": "IPv4"
@@ -195,7 +190,7 @@
     {
       "type": "Microsoft.Network/networkSecurityGroups",
       "name": "[variables('smarthotelhostNSGName')]",
-      "apiVersion": "2025-09-01",
+      "apiVersion": "2019-02-01",
       "location": "[resourceGroup().location]",
       "tags": {},
       "properties": {
@@ -279,7 +274,7 @@
         "tier": "Regional"
       },
       "name": "[variables('publicIPAddressName')]",
-      "apiVersion": "2025-07-01",
+      "apiVersion": "2019-02-01",
       "location": "[resourceGroup().location]",
       "tags": {},
       "properties": {
@@ -296,7 +291,7 @@
        ]
     },
     {
-      "apiVersion": "2025-07-01",
+      "apiVersion": "2019-09-01",
       "type": "Microsoft.Network/virtualNetworks",
       "name": "[variables('smarthotelVnetName')]",
       "location": "[resourceGroup().location]",
@@ -319,7 +314,7 @@
       }
     },
     {
-      "apiVersion": "2025-07-01",
+      "apiVersion": "2019-02-01",
       "type": "Microsoft.Network/virtualNetworks",
       "name": "[variables('dmsVnetName')]",
       "location": "[resourceGroup().location]",
@@ -342,7 +337,7 @@
       }
     },
     {
-      "apiVersion": "2025-07-01",
+      "apiVersion": "2016-06-01",
       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
       "name": "[concat(variables('smarthotelVnetName'),'/host2dms')]",
       "location": "[resourceGroup().location]",
@@ -361,7 +356,7 @@
       ]
     },
     {
-      "apiVersion": "2025-07-01",
+      "apiVersion": "2016-06-01",
       "type": "Microsoft.Network/virtualNetworks/virtualNetworkPeerings",
       "name": "[concat(variables('dmsVnetName'),'/dms2host')]",
       "location": "[resourceGroup().location]",
@@ -412,14 +407,6 @@
     "SmartHotel Admin Password": {
       "type": "string",
       "value": "demo!pass123"
-    },
-    "CustomScriptExtension Provisioning State": {
-      "type": "string",
-      "value": "[reference(resourceId('Microsoft.Compute/virtualMachines/extensions', variables('smarthotelhostVMname'), 'CustomSciptExtension')).provisioningState]"
-    },
-    "SmartHotelHost VM Resource Id": {
-      "type": "string",
-      "value": "[resourceId('Microsoft.Compute/virtualMachines', variables('smarthotelhostVMname'))]"
     }
   }
 }
