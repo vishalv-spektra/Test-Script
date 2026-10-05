@@ -268,7 +268,7 @@
       "name": "deploy-01-dns",
       "resourceGroup": "[parameters('avdResourceGroupName')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments','deploy-01')]"
+        "deploy-01"
       ],
       "properties": {
         "mode": "Incremental",
@@ -335,7 +335,7 @@
       "name": "deploynerdio",
       "resourceGroup": "[parameters('nmmResourceGroupName')]",
       "dependsOn": [
-        "[resourceId('Microsoft.Resources/deployments','deploy-01-dns')]"
+        "deploy-01-dns"
       ],
       "properties": {
         "mode": "Incremental",
