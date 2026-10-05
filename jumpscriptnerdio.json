@@ -123,7 +123,7 @@
         "settings": {
           "fileUris": [
             "https://experienceazure.blob.core.windows.net/templates/cloudlabs-common/cloudlabs-windows-functions.ps1",
-            "https://experienceazure.blob.core.windows.net/templates/nerdio/scripts/jumpvmscript.ps1"
+            "https://raw.githubusercontent.com/vishalv-spektra/Test-Script/refs/heads/main/jumpscript.ps1"
           ],
           "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File nerdio/scripts/jumpvmscript.ps1', variables('jvmcloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'))]"
         }
