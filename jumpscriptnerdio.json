@@ -37,13 +37,19 @@
     "azureTenantFQDN": {
       "type": "string"
     },
-    "servicePrincipalId": {
+    "avdResourceGroupName": {
       "type": "string",
-      "defaultValue": ""
+      "defaultValue": "AVD-RG",
+      "metadata": {
+        "description": "Existing resource group for Microsoft Entra Domain Services"
+      }
     },
-    "servicePrincipalSecret": {
-      "type": "securestring",
-      "defaultValue": ""
+    "nmmResourceGroupName": {
+      "type": "string",
+      "defaultValue": "NMM-RG",
+      "metadata": {
+        "description": "Existing resource group for Nerdio Manager for MSP"
+      }
     }
   },
   "variables": {
@@ -66,8 +72,7 @@
     "workspacename": "[concat('avd-monitoring-la-',parameters('DeploymentID'))]",
     "nmmuser01": "[concat('nmmuser01@',parameters('azureTenantFQDN'))]",
     "nmmuser02": "[concat('nmmuser02@',parameters('azureTenantFQDN'))]",
-    "avduserPassword": "Azure1234567",
-    "spArgs": "[if(empty(parameters('servicePrincipalId')), '', concat(' -ServicePrincipalId ', parameters('servicePrincipalId'), ' -ServicePrincipalSecret ', parameters('servicePrincipalSecret')))]"
+    "avduserPassword": "Azure1234567"
   },
   "resources": [
     {
@@ -122,7 +127,8 @@
       "apiVersion": "2024-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
-        "[concat('Microsoft.Compute/virtualMachines/',variables('jvmname'))]"
+        "[concat('Microsoft.Compute/virtualMachines/',variables('jvmname'))]",
+        "[resourceId('Microsoft.Resources/deployments','deploynerdio')]"
       ],
       "properties": {
         "publisher": "Microsoft.Compute",
@@ -134,7 +140,7 @@
             "https://experienceazure.blob.core.windows.net/templates/cloudlabs-common/cloudlabs-windows-functions.ps1",
             "https://raw.githubusercontent.com/vishalv-spektra/Test-Script/refs/heads/main/jumpscript.ps1"
           ],
-          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File jumpscript.ps1', variables('jvmcloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'), variables('spArgs'))]"
+          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File jumpscript.ps1', variables('jvmcloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'))]"
         }
       }
     },
@@ -225,6 +231,107 @@
             }
           }
         ]
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-01",
+      "resourceGroup": "[parameters('avdResourceGroupName')]",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://experienceazure.blob.core.windows.net/templates/nerdio/deploy-01.json",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "domainName": {
+            "value": "[parameters('azureTenantFQDN')]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploy-01-dns",
+      "resourceGroup": "[parameters('avdResourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments','deploy-01')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "parameters": {
+          "domainName": {
+            "value": "[parameters('azureTenantFQDN')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "parameters": {
+            "domainName": {
+              "type": "string"
+            }
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Network/virtualNetworks",
+              "apiVersion": "2018-04-01",
+              "name": "aadds-vnet",
+              "location": "[resourceGroup().location]",
+              "properties": {
+                "addressSpace": {
+                  "addressPrefixes": [
+                    "10.0.0.0/16"
+                  ]
+                },
+                "dhcpOptions": {
+                  "dnsServers": "[reference(resourceId('Microsoft.AAD/DomainServices', parameters('domainName')), '2017-06-01').domainControllerIpAddress]"
+                },
+                "subnets": [
+                  {
+                    "name": "aadds-subnet",
+                    "properties": {
+                      "addressPrefix": "10.0.0.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups','aadds-nsg')]"
+                      }
+                    }
+                  },
+                  {
+                    "name": "sessionhosts-subnet",
+                    "properties": {
+                      "addressPrefix": "10.0.1.0/24",
+                      "networkSecurityGroup": {
+                        "id": "[resourceId('Microsoft.Network/networkSecurityGroups','aadds-nsg')]"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2022-09-01",
+      "name": "deploynerdio",
+      "resourceGroup": "[parameters('nmmResourceGroupName')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Resources/deployments','deploy-01-dns')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "https://experienceazure.blob.core.windows.net/templates/nerdio/deploy-02.json",
+          "contentVersion": "1.0.0.0"
+        }
       }
     }
   ],
