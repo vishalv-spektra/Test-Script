@@ -50,6 +50,14 @@
       "metadata": {
         "description": "Existing resource group for Nerdio Manager for MSP"
       }
+    },
+    "servicePrincipalId": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "servicePrincipalSecret": {
+      "type": "securestring",
+      "defaultValue": ""
     }
   },
   "variables": {
@@ -72,7 +80,8 @@
     "workspacename": "[concat('avd-monitoring-la-',parameters('DeploymentID'))]",
     "nmmuser01": "[concat('nmmuser01@',parameters('azureTenantFQDN'))]",
     "nmmuser02": "[concat('nmmuser02@',parameters('azureTenantFQDN'))]",
-    "avduserPassword": "Azure1234567"
+    "avduserPassword": "Azure1234567",
+    "spArgs": "[if(empty(parameters('servicePrincipalId')), '', concat(' -ServicePrincipalId ', parameters('servicePrincipalId'), ' -ServicePrincipalSecret ', parameters('servicePrincipalSecret')))]"
   },
   "resources": [
     {
@@ -127,8 +136,7 @@
       "apiVersion": "2024-07-01",
       "location": "[resourceGroup().location]",
       "dependsOn": [
-        "[concat('Microsoft.Compute/virtualMachines/',variables('jvmname'))]",
-        "[resourceId('Microsoft.Resources/deployments','deploynerdio')]"
+        "[concat('Microsoft.Compute/virtualMachines/',variables('jvmname'))]"
       ],
       "properties": {
         "publisher": "Microsoft.Compute",
@@ -140,7 +148,7 @@
             "https://experienceazure.blob.core.windows.net/templates/cloudlabs-common/cloudlabs-windows-functions.ps1",
             "https://raw.githubusercontent.com/vishalv-spektra/Test-Script/refs/heads/main/jumpscript.ps1"
           ],
-          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File jumpscript.ps1', variables('jvmcloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'))]"
+          "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -File jumpscript.ps1', variables('jvmcloudlabsCommon'), variables('Enable-CloudLabsEmbeddedShadow'), variables('spArgs'))]"
         }
       }
     },
@@ -249,7 +257,10 @@
             "value": "[parameters('azureTenantFQDN')]"
           }
         }
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines/extensions', variables('jvmName'), 'extension')]"
+      ]
     },
     {
       "type": "Microsoft.Resources/deployments",
