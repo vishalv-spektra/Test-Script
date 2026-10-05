@@ -189,7 +189,7 @@ if ($ServicePrincipalId -and $ServicePrincipalSecret -and (Test-Path "$LabFilesD
 }
 
 $WebClient = New-Object System.Net.WebClient
-$WebClient.DownloadFile("https://experienceazure.blob.core.windows.net/templates/nerdio/scripts/logontask.ps1", "$LabFilesDirectory\logontask.ps1")
+$WebClient.DownloadFile("https://raw.githubusercontent.com/vishalv-spektra/Test-Script/refs/heads/main/logontask.ps1", "$LabFilesDirectory\logontask.ps1")
 
 # The Remote Desktop (MSRDC) client install was removed: that client is retired and the lab uses the web client.
 
