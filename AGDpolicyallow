@@ -1,0 +1,75 @@
+{
+  "properties": {
+    "displayName": "Allow Approved Azure AI Models with Approved SKU and Capacity",
+    "policyType": "Custom",
+    "mode": "All",
+    "description": "Denies Microsoft Foundry / Azure AI model deployments unless the model, deployment type (SKU) and capacity are approved. Defaults: gpt-5-mini, GlobalStandard, max capacity 10 (10K TPM).",
+    "metadata": {
+      "category": "Cognitive Services",
+      "version": "1.1.0"
+    },
+    "parameters": {
+      "allowedModels": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed model names",
+          "description": "Model names that may be deployed. Add text-embedding-ada-002 when deployEmbedding is true."
+        },
+        "defaultValue": [
+          "gpt-5-mini"
+        ]
+      },
+      "allowedSkus": {
+        "type": "Array",
+        "metadata": {
+          "displayName": "Allowed deployment types (SKU names)",
+          "description": "For example GlobalStandard, Standard."
+        },
+        "defaultValue": [
+          "GlobalStandard"
+        ]
+      },
+      "maxCapacity": {
+        "type": "Integer",
+        "metadata": {
+          "displayName": "Maximum capacity",
+          "description": "Maximum deployment capacity in thousands of tokens per minute. 10 = 10K TPM."
+        },
+        "defaultValue": 10
+      }
+    },
+    "policyRule": {
+      "if": {
+        "allOf": [
+          {
+            "field": "type",
+            "equals": "Microsoft.CognitiveServices/accounts/deployments"
+          },
+          {
+            "anyOf": [
+              {
+                "not": {
+                  "field": "Microsoft.CognitiveServices/accounts/deployments/model.name",
+                  "in": "[parameters('allowedModels')]"
+                }
+              },
+              {
+                "not": {
+                  "field": "Microsoft.CognitiveServices/accounts/deployments/sku.name",
+                  "in": "[parameters('allowedSkus')]"
+                }
+              },
+              {
+                "field": "Microsoft.CognitiveServices/accounts/deployments/sku.capacity",
+                "greater": "[parameters('maxCapacity')]"
+              }
+            ]
+          }
+        ]
+      },
+      "then": {
+        "effect": "Deny"
+      }
+    }
+  }
+}
